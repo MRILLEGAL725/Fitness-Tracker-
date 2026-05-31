@@ -83,7 +83,7 @@ WSGI_APPLICATION = 'fitnesstracker.wsgi.application'
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.environ.get("postgresql://fitness_user:s5cNfgyfahQAUZHoqrgi8QFgMXcHVS3F@dpg-d8dsq86rnols739mg9q0-a.virginia-postgres.render.com/fitness_db_41ql")
+        default=os.environ.get("DATABASE_URL")
     )
 }
 
