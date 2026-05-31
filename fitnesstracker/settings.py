@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
-
+import dj_database_url
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -82,11 +82,11 @@ WSGI_APPLICATION = 'fitnesstracker.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    "default": dj_database_url.config(
+        default=os.environ.get("postgresql://fitness_user:s5cNfgyfahQAUZHoqrgi8QFgMXcHVS3F@dpg-d8dsq86rnols739mg9q0-a.virginia-postgres.render.com/fitness_db_41ql")
+    )
 }
+
 
 AUTH_USER_MODEL = 'tracker.User'
 
