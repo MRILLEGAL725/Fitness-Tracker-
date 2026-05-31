@@ -27,11 +27,11 @@ CSRF_TRUSTED_ORIGINS = [
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = 'django-insecure-123456789abcdefghijklmnopqrstuvwxyz'
 
-DEBUG = os.environ.get('DEBUG') == 'True'
+DEBUG ='False'
 
-ALLOWED_HOSTS = ['.vercel.app']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition

@@ -2,7 +2,7 @@ function capitalizeFirstLetter(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-    function foodinfo() {
+function foodinfo() {
     const food_item = document.getElementById('food-name').value;
     const calories = document.getElementById('food-amount').value;
 
@@ -27,17 +27,20 @@ function capitalizeFirstLetter(str) {
                 row.appendChild(valueCell);
                 return row;
             };
+            tbody.appendChild(
+                createTableRow(
+                    'Calories',
+                    food_api.calories
+                )
+            );
+            tbody.appendChild(createTableRow('Protein (g)', food_api.protein));
+            tbody.appendChild(createTableRow('Carbohydrates Total (g)', food_api.carbs));
 
-            tbody.appendChild(createTableRow('Calories', food_api.calories));
-            tbody.appendChild(createTableRow('Fat Total (g)', food_api.fat_total_g));
-            tbody.appendChild(createTableRow('Fat Saturated (g)', food_api.fat_saturated_g));
-            tbody.appendChild(createTableRow('Protein (g)', food_api.protein_g));
-            tbody.appendChild(createTableRow('Sodium (mg)', food_api.sodium_mg));
-            tbody.appendChild(createTableRow('Potassium (mg)', food_api.potassium_mg));
-            tbody.appendChild(createTableRow('Cholesterol (mg)', food_api.cholesterol_mg));
-            tbody.appendChild(createTableRow('Carbohydrates Total (g)', food_api.carbohydrates_total_g));
-            tbody.appendChild(createTableRow('Fiber (g)', food_api.fiber_g));
-            tbody.appendChild(createTableRow('Sugar (g)', food_api.sugar_g));
+            tbody.appendChild(createTableRow('Fat Total (g)', food_api.fat));
+            
+            
+            tbody.appendChild(createTableRow('Fibre (g)', food_api.fibre));
+
 
             table.appendChild(tbody);
 

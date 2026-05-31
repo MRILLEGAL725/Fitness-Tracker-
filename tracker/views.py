@@ -9,21 +9,17 @@ from django.urls import reverse
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-
+# import google.generativeai as genai
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 
-from datetime import date
-
+from datetime import date, datetime
+from .models import FoodDatabase
 from .models import *
 from dotenv import load_dotenv
-
+from django.contrib import messages
 load_dotenv()
-
-API_KEY = os.environ.get('API_KEY')  
-API_URL = 'https://api.api-ninjas.com/v1/nutrition?query='
-X_API_URL = 'https://api.api-ninjas.com/v1/caloriesburned?activity='
-
+ 
 
 def index(request):
     if not request.user.is_authenticated:
@@ -39,11 +35,6 @@ def index(request):
     for food in foods:
         total_calorie_gain += food.calories
 
-    exercises = Exercise.objects.filter(user=user, date=date.today())
-    total_calorie_burned = 0
-    for exercise in exercises:
-        total_calorie_burned += exercise.calories
-
     name = user.first_name
 
     current_date = date.today()
@@ -56,7 +47,6 @@ def index(request):
         {
             "name": name,
             "calorie_goal": calorie_goal,
-            "total_calorie_burned": total_calorie_burned,
             "calories_remaining": calorie_goal - total_calorie_gain,
             "total_calorie_gain": total_calorie_gain,
         },
@@ -153,12 +143,12 @@ def register(request):
             sex=sex,
             bday=bday,
             height=height,
-            weight=weight,
-            goalweight=goalweight,
+            weight=int(weight),
+            goalweight=int(goalweight),
             activity=activity,
             maintainance=maintainance_calories,
             goalcalorie=calorie_goal,
-        )
+            )
         person.save()
 
         login(request, user)
@@ -214,188 +204,215 @@ def edit_profile(request):
     return HttpResponseRedirect(reverse("index"))
 
 
-@login_required
-def food(request):
-    if request.method == "POST":
-        return HttpResponseRedirect(reverse("index"))
-    else:
-        user_ate_today = Food.objects.filter(user=request.user, date=date.today())
-        breakfast = user_ate_today.filter(meal="breakfast")
-        lunch = user_ate_today.filter(meal="lunch")
-        dinner = user_ate_today.filter(meal="dinner")
-
-        total_calories = (
-            total_protein
-        ) = total_carbs = total_sodium = total_cholesterol = total_sugar = 0
-
-        for food in user_ate_today:
-            total_calories += food.calories
-            total_protein += food.protein
-            total_carbs += food.carbs
-            total_sodium += food.sodium
-            total_cholesterol += food.cholesterol
-            total_sugar += food.sugar
-
-        return render(
-            request,
-            "tracker/food.html",
-            {
-                "query": "Enter a valid query",
-                "breakfast_food_items": breakfast,
-                "lunch_food_items": lunch,
-                "dinner_food_items": dinner,
-                "total_calories": total_calories,
-                "total_protein": total_protein,
-                "total_carbs": total_carbs,
-                "total_sodium": total_sodium,
-                "total_cholesterol": total_cholesterol,
-                "total_sugar": total_sugar,
-                "today": timezone.now()
-            },
-        )
-
 
 @login_required
 def addFood(request, meal):
-    if not meal:
-        return HttpResponse(f"what meal")
+
+    # GET SELECTED DATE
+
+    selected_date = request.GET.get("date")
+
+    # IF USER SELECTED DATE
+
+    if selected_date:
+
+        selected_date = datetime.strptime(
+            selected_date,
+            "%Y-%m-%d"
+        ).date()
+
+    # OTHERWISE USE TODAY
+
+    else:
+
+        selected_date = timezone.now().date()
+
+    # ADD FOOD
+
     if request.method == "POST":
-        food = request.POST["food-name"].lower().strip()
-        amount_g = int(request.POST["food-amount"])
 
-        api_request = requests.get(API_URL + food, headers={"X-Api-Key": API_KEY})
-        try:
-            api = json.loads(api_request.content)
-        except Exception as e:
-            api = "ERROR"
+        food_name = request.POST.get(
+            "food-name"
+        ).strip()
 
-        serving_size = api[0]["serving_size_g"]
-
-        name = api[0]["name"].capitalize()
-        total_calories = amount_g * api[0]["calories"] // serving_size
-        protein = api[0]["protein_g"] * amount_g // serving_size
-        carbs = api[0]["carbohydrates_total_g"] * amount_g // serving_size
-        sodium = api[0]["sodium_mg"] * amount_g // serving_size
-        cholesterol = api[0]["cholesterol_mg"] * amount_g // serving_size
-        sugar = api[0]["sugar_g"] * amount_g // serving_size
-        food_obj = Food(
-            user=request.user,
-            name=name,
-            calories=total_calories,
-            grams=amount_g,
-            meal=meal,
-            protein=protein,
-            carbs=carbs,
-            sodium=sodium,
-            cholesterol=cholesterol,
-            sugar=sugar,
-        )
-        food_obj.save()
-        return HttpResponseRedirect(reverse('food'))
-
-    return render(request, "tracker/add-food.html", {"meal": meal})
-
-
-def get_food_info(request, food_item):
-    if request.method == "GET":
-        try:
-            user = request.user
-            food = str(food_item).lower().strip()
-            food = food.replace(' ', '+')
-            api_request = requests.get(API_URL + food, headers={"X-Api-Key": API_KEY})
-            try:
-                api = json.loads(api_request.content)
-            except Exception as e:
-                api = "ERROR"
-            food_api = api[0]
-
-            return JsonResponse({"food_api": food_api})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-
-@login_required
-def exercise(request):
-    total = 0
-
-    cardio = Exercise.objects.filter(user=request.user, date=date.today(), type='cardio')
-    strength = Exercise.objects.filter(user=request.user, date=date.today(), type='strength_training')
-    other = Exercise.objects.filter(user=request.user, date=date.today(), type='other')
-    
-    allX = Exercise.objects.filter(user=request.user, date=date.today())
-    for x in allX:
-        total += x.calories
-
-    return render(request, "tracker/exercise.html", {"cardio_exercises": cardio, "strength_training_exercises": strength, "other_exercises": other, "total_calories_burned": total})
-
-
-@login_required
-def requestExercise(request, exercise):
-    if request.method == "POST":
-        data = json.loads(request.body)
-        amount = int(data.get("minutes"))
-        name = data.get("exerciseName")
-        type = data.get("exerciseType")
-        calories = int(data.get("calories"))
-        workout = Exercise(user = request.user, exercise = name, amount = amount, type = type, calories = calories)
-        workout.save()
-        return JsonResponse({"message": "saved"})
-    return render(request, "tracker/add-exercise.html", {"exercise": exercise})
-
-
-def searchExercise(request, exercise_name, minutes):
-    if request.method == "GET":
-        try:
-            user = request.user
-            name = exercise_name
-            person = Person.objects.get(user = user)
-            weight = str(person.weight)
-            api_request = requests.get(X_API_URL + name + "&?&weight=" + weight + "&?&duration=" + str(minutes), headers={"X-Api-Key": API_KEY})
-            try:
-                api = json.loads(api_request.content)
-            except Exception as e:
-                api = "ERROR"
-            x_api = api
-
-            return JsonResponse({"x_api": x_api})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-
-def addExercise(request, exercise_name):
-    if request.method == "POST":
-        try:
-            # create the exercise
-            data = json.loads(request.body)
-            if data.get("content") is not None:
-                amount = data["minutes"]
-
-            person = Person.objects.get(user=request.user)
-            weight = person.weight
-
-            # use the api to calculate the calories
-            name = exercise_name.replace(' ', '+')
-            api_request = requests.get(X_API_URL + name + "?weight" + weight + "?duration" + amount, headers={"X-Api-Key": API_KEY})
-            try:
-                api = json.loads(api_request.content)
-            except Exception as e:
-                api = "ERROR"
-            x_api = api[0]
-
-            exercise_obj = Exercise(
-                user=request.user, exercise=exercise, amount=amount, calories=calories
+        amount_g = int(
+            request.POST.get(
+                "food-amount"
             )
-            exercise_obj.save()
+        )
 
-            return JsonResponse(
+        # FIND FOOD IN DATABASE
+
+        food_data = FoodDatabase.objects.filter(
+
+            name__icontains=food_name
+
+        ).first()
+
+        # IF FOOD NOT FOUND
+
+        if not food_data:
+
+            return render(
+
+                request,
+
+                "tracker/add-food.html",
+
                 {
-                    "message": "Exercise added successfully."
+
+                    "meal": meal,
+
+                    "selected_date":
+                    selected_date,
+
+                    "error":
+                    "Food not found in database."
                 }
             )
-        except:
-            return JsonResponse({"error": "Like not found."}, status=404)
-    else:
-        return JsonResponse({"error": "Unauthorized"}, status=403)
+
+        # CREATE FOOD ENTRY
+
+        food_obj = Food(
+
+            user=request.user,
+
+            name=food_data.name,
+
+            calories=round(
+                (food_data.calories * amount_g) / 100,
+                1
+            ),
+
+            protein=round(
+                (food_data.protein * amount_g) / 100,
+                1
+            ),
+
+            carbs=round(
+                (food_data.carbs * amount_g) / 100,
+                1
+            ),
+
+            fat=round(
+                (food_data.fat * amount_g) / 100,
+                1
+            ),
+
+            fibre=round(
+                (food_data.fibre * amount_g) / 100,
+                1
+            ),
+
+            grams=amount_g,
+
+            meal=meal,
+
+            date=selected_date
+        )
+
+        food_obj.save()
+
+        # RETURN TO SAME DATE
+
+        return redirect(
+    f"/food/diary?date={selected_date.strftime('%Y-%m-%d')}"
+)
+
+    # OPEN PAGE
+
+    return render(
+
+        request,
+
+        "tracker/add-food.html",
+
+        {
+
+            "meal": meal,
+
+            "selected_date":
+            selected_date
+        }
+    )
+
+def get_food_info(request, food_item):
+
+    if request.method == "GET":
+
+        try:
+
+            food_item = food_item.strip().lower()
+
+            # Exact match
+            food = FoodDatabase.objects.filter(
+                name__iexact=food_item
+            ).first()
+
+            # Startswith match
+            if not food:
+
+                food = FoodDatabase.objects.filter(
+                    name__istartswith=food_item
+                ).order_by("name").first()
+
+            # Contains match
+            if not food:
+
+                food = FoodDatabase.objects.filter(
+                    name__icontains=food_item
+                ).order_by("name").first()
+
+            # Not found
+            if not food:
+
+                return JsonResponse({
+
+                    "food_api": {
+
+                        "name": food_item,
+
+                        "serving_size_g": 100,
+
+                        "calories": 0,
+
+                        "protein": 0,
+
+                        "carbs": 0,
+
+                        "fat": 0,
+
+                        "fibre": 0
+                    }
+                })
+
+            return JsonResponse({
+
+                "food_api": {
+
+                    "name": food.name,
+
+                    "serving_size_g": 100,
+
+                    "calories": food.calories,
+
+                    "protein": food.protein,
+
+                    "carbs": food.carbs,
+
+                    "fat": food.fat,
+
+                    "fibre": food.fibre
+                }
+            })
+
+        except Exception as e:
+
+            return JsonResponse(
+                {"error": str(e)},
+                status=500
+            )
+
 
 
 def change_password(request):
@@ -409,3 +426,248 @@ def change_password(request):
         form = PasswordChangeForm(user=request.user)
 
     return render(request, 'tracker/change_password.html', {'form': form})
+
+
+@login_required
+def deleteFood(request, id):
+
+    food = Food.objects.get(
+        id=id,
+        user=request.user
+    )
+
+    food.delete()
+
+    return redirect("food")
+
+from django.shortcuts import get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+
+
+@login_required
+def editFood(request, id):
+
+    food = get_object_or_404(
+
+        Food,
+
+        id=id,
+
+        user=request.user
+    )
+
+    if request.method == "POST":
+
+        amount_g = int(
+            request.POST.get(
+                "food-amount"
+            )
+        )
+
+        # FIND CLOSEST MATCH
+
+        food_data = FoodDatabase.objects.filter(
+
+            name__icontains=food.name
+
+        ).first()
+
+        # IF NO FOOD FOUND
+
+        if not food_data:
+
+            return render(
+
+                request,
+
+                "tracker/edit-food.html",
+
+                {
+
+                    "food": food,
+
+                    "error":
+                    "Food not found in database."
+                }
+            )
+
+        # UPDATE VALUES
+
+        food.grams = amount_g
+
+        food.calories = round(
+            (food_data.calories * amount_g) / 100,
+            1
+        )
+
+        food.protein = round(
+            (food_data.protein * amount_g) / 100,
+            1
+        )
+
+        food.carbs = round(
+            (food_data.carbs * amount_g) / 100,
+            1
+        )
+
+        food.fat = round(
+            (food_data.fat * amount_g) / 100,
+            1
+        )
+
+        food.fibre = round(
+            (food_data.fibre * amount_g) / 100,
+            1
+        )
+
+        food.save()
+
+        return redirect(
+    f"/food/diary?date={food.date}"
+)
+
+    return render(
+
+        request,
+
+        "tracker/edit-food.html",
+
+        {
+
+            "food": food
+        }
+    )
+
+@login_required
+def foodDiary(request):
+
+    # GET SELECTED DATE
+
+    selected_date = request.GET.get("date")
+
+    # IF USER CHOOSES DATE
+
+    if selected_date:
+
+        selected_date = datetime.strptime(
+            selected_date,
+            "%Y-%m-%d"
+        ).date()
+
+    # OTHERWISE USE TODAY
+
+    else:
+
+        selected_date = timezone.now().date()
+
+    # BREAKFAST ITEMS
+
+    breakfast_food_items = Food.objects.filter(
+
+        user=request.user,
+
+        meal="breakfast",
+
+        date=selected_date
+
+    )
+
+    # LUNCH ITEMS
+
+    lunch_food_items = Food.objects.filter(
+
+        user=request.user,
+
+        meal="lunch",
+
+        date=selected_date
+
+    )
+
+    # DINNER ITEMS
+
+    dinner_food_items = Food.objects.filter(
+
+        user=request.user,
+
+        meal="dinner",
+
+        date=selected_date
+
+    )
+
+    # ALL FOODS OF SELECTED DATE
+
+    all_foods = Food.objects.filter(
+
+        user=request.user,
+
+        date=selected_date
+
+    )
+
+    # TOTAL CALCULATIONS
+
+    total_calories = sum(
+        food.calories for food in all_foods
+    )
+
+    total_protein = sum(
+        food.protein for food in all_foods
+    )
+
+    total_carbs = sum(
+        food.carbs for food in all_foods
+    )
+
+    total_fat = sum(
+        food.fat for food in all_foods
+    )
+
+    total_fibre = sum(
+        food.fibre for food in all_foods
+    )
+
+    # CONTEXT
+
+    context = {
+
+        "selected_date": selected_date,
+
+        "breakfast_food_items":
+        breakfast_food_items,
+
+        "lunch_food_items":
+        lunch_food_items,
+
+        "dinner_food_items":
+        dinner_food_items,
+
+        "total_calories":
+        round(total_calories, 1),
+
+        "total_protein":
+        round(total_protein, 1),
+
+        "total_carbs":
+        round(total_carbs, 1),
+
+        "total_fat":
+        round(total_fat, 1),
+
+        "total_fibre":
+        round(total_fibre, 1)
+    }
+
+    # RENDER PAGE
+
+    return render(
+
+        request,
+
+        "tracker/food.html",
+
+        context
+    )
+
