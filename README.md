@@ -78,7 +78,7 @@ A full-stack Django-based Fitness Tracker that helps users monitor their daily n
 
 ## Live Demo
 
-https://your-render-url.onrender.com
+https://fitness-tracker-lre0.onrender.com
 
 ---
 
