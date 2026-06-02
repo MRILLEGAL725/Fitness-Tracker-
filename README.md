@@ -126,6 +126,41 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+### Import Food Database
+
+After running migrations, import the food data from the CSV file:
+
+```bash
+python manage.py shell
+```
+
+Then run:
+
+```python
+exec(open("tracker/import_foods.py").read())
+```
+
+You should see a message indicating that the import completed successfully.
+
+Verify the import:
+
+```python
+from tracker.models import FoodDatabase
+
+print(FoodDatabase.objects.count())
+```
+
+The output should show the number of food items imported.
+
+Type:
+
+```python
+exit()
+```
+
+to leave the Django shell.
+
+
 ### Create Superuser
 
 ```bash
